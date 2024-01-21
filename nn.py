@@ -34,8 +34,17 @@ class MatMul(Node):
         return self.output
     
     def backward(self, output_gradient):
+        # Reshape the output_gradient to 2D if it's a 1D array
+        if output_gradient.ndim == 1:
+            output_gradient = output_gradient.reshape(1, -1)
+
         input_gradient = np.dot(output_gradient, self.inputs[1].T)
-        weights_gradient = np.dot(self.inputs[0].T, output_gradient)
+        weights_gradient = np.dot(self.inputs[0].reshape(1, -1).T, output_gradient)
+
+        # Ensure the gradients have the correct shape        
+        if input_gradient.shape[0] == 1:
+            input_gradient = input_gradient.flatten()
+
         return input_gradient, weights_gradient
 
 
@@ -68,9 +77,11 @@ class SimpleDenseLayer:
     def backward(self, output_gradient, learning_rate):
         relu_gradient = self.relu.backward(output_gradient)
         add_gradient, biases_gradient = self.add.backward(relu_gradient)
+        print('add_gradient:', add_gradient)
         input_gradient, weights_gradient = self.matmul.backward(add_gradient)
 
         # Update weights and biases
+        # print('here', self.weights, learning_rate, weights_gradient)
         self.weights -= learning_rate * weights_gradient
         self.biases -= learning_rate * biases_gradient
 
@@ -101,14 +112,24 @@ class NeuralNetwork:
         return x
     
     def backward_pass(self, output_gradient, learning_rate=0.01):
+        i = 0
         for layer in reversed(self.layers):
+            print('here: ', i)
             output_gradient = layer.backward(output_gradient, learning_rate)
+            i += 1
+
+        return output_gradient
 
 
+# NOTE: The first element of layer_sizes must match randn's argument here for input_data
 layer_sizes = [3, 5, 4, 1]
+input_data = np.random.randn(layer_sizes[0])
 nn = NeuralNetwork(layer_sizes)
 
 # Example input
-input_data = np.random.randn(3)
 output = nn.forward_pass(input_data)
-print(output)
+print('forward pass: ', output)
+
+output_gradient = np.random.randn(1)
+output = nn.backward_pass(output_gradient)
+print('backpropagation gradient: ', output)
